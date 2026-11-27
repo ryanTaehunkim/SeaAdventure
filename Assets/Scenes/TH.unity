@@ -6567,8 +6567,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6b0f8d36e247ca48a491a89882adceb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  normalSpeed: 6
-  carryingSpeed: 3.5
+  normalSpeed: 8
+  carryingSpeed: 4.5
   turnSpeed: 12
   modelYawOffset: 180
   cameraPivot: {fileID: 0}
@@ -6579,7 +6579,7 @@ MonoBehaviour:
   rabbit: {fileID: 0}
   rabbitObjectName: Rabbit
   carryPoint: {fileID: 0}
-  carryLocalPosition: {x: 0, y: 0.25, z: -0.1}
+  carryLocalPosition: {x: 1, y: 1.42, z: 0}
   carryLocalEulerAngles: {x: 0, y: 0, z: 0}
   pickupRange: 3
 --- !u!54 &447071720
@@ -6609,6 +6609,28 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!95 &447071721
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 447071716}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: b08434ce6389b64409b4e02f025918f7, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1001 &451247796
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6619,15 +6641,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.2
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.2
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.2
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
       propertyPath: m_LocalPosition.x
@@ -6699,7 +6721,15 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
       insertIndex: -1
       addedObject: {fileID: 447071718}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 447071721}
   m_SourcePrefab: {fileID: 100100000, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
+--- !u!4 &451247800 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -2225152282341626924, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
+  m_PrefabInstance: {fileID: 451247796}
+  m_PrefabAsset: {fileID: 0}
 --- !u!43 &454530494
 Mesh:
   m_ObjectHideFlags: 0
@@ -18992,27 +19022,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.1
+      value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.1
+      value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.1
+      value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 3.6506672
+      value: 3.3858528
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.393
+      value: 0.18320386
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 7.2080665
+      value: 7.1257524
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 939e652a831c4b24b80841c380491369, type: 3}
       propertyPath: m_LocalRotation.w
@@ -28470,7 +28500,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b08ea87dc70e2a24fb4ce5bdf098aa19, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraController
-  target: {fileID: -8679921383154817045, guid: e547db5968bb7144e8bb50d427a9b063, type: 3}
+  target: {fileID: 451247800}
   distance: 3
   height: 1
   mouseSensitivity: 2
