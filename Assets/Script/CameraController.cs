@@ -21,6 +21,16 @@ public class CameraController : MonoBehaviour
     [Tooltip("켜면 게임 시작 시 마우스 커서를 숨기고 화면 중앙에 고정합니다. (Esc: 해제 / 클릭: 다시 고정)")]
     public bool lockCursor = true;
 
+    [Header("Vertical Look (마우스 상하 회전)")]
+    [Tooltip("켜면 마우스를 위아래로 움직여 카메라 각도를 조절합니다. 끄면 height/distance 값으로 각도가 고정됩니다.")]
+    public bool enableVerticalLook = true;
+    [Tooltip("마우스 위/아래 방향을 반대로 합니다.")]
+    public bool invertY = false;
+    [Tooltip("카메라가 내려갈 수 있는 최소 각도입니다. (수평=0, 바로 위=90)")]
+    [Range(0f, 89f)] public float minPitch = 10f;
+    [Tooltip("카메라가 올라갈 수 있는 최대 각도입니다. 90에 가까우면 화면이 뒤집힐 수 있어 80 정도를 권장합니다.")]
+    [Range(0f, 89f)] public float maxPitch = 80f;
+
     [Header("Follow Speed")]
     [Range(1.0f, 10.0f)]
     [Tooltip("카메라가 대상을 따라가는 속도를 조절합니다. 값이 클수록 더 빨리 따라붙습니다.")]
@@ -41,11 +51,17 @@ public class CameraController : MonoBehaviour
     // 카메라가 대상 주위를 도는 각도 (마우스로 조절)
     // 거북이가 바라보는 방향과 무관하게 움직이므로 이동 방향과 서로 영향을 주지 않습니다.
     private float yaw;
+    private float pitch;   // 카메라가 대상을 내려다보는 각도 (마우스 상하 이동으로 조절)
     private readonly RaycastHit[] hitBuffer = new RaycastHit[16];
+
+    // height / distance 값에서 계산되는 기본 각도와 대상까지의 거리
+    private float BasePitch => Mathf.Atan2(height, distance) * Mathf.Rad2Deg;
+    private float Radius => Mathf.Sqrt(height * height + distance * distance);
 
     private void Start()
     {
         yaw = target != null ? target.eulerAngles.y : transform.eulerAngles.y;
+        pitch = Mathf.Clamp(BasePitch, minPitch, maxPitch);   // 처음에는 기존 height/distance 위치에서 시작
         SetCursorLocked(lockCursor);
     }
 
@@ -56,7 +72,19 @@ public class CameraController : MonoBehaviour
 
         // 커서가 고정된 상태에서만 마우스로 회전
         if (Cursor.lockState == CursorLockMode.Locked)
+        {
             yaw += ReadMouseX() * mouseSensitivity;
+
+            if (enableVerticalLook)
+            {
+                // 마우스를 위로 올리면 카메라가 낮아져 위를 보게 됨 (invertY로 반전 가능)
+                float dir = invertY ? 1f : -1f;
+                pitch += ReadMouseY() * mouseSensitivity * dir;
+            }
+        }
+
+        if (enableVerticalLook) pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+        else pitch = BasePitch;   // 상하 회전을 끄면 height/distance 값으로 고정 (실행 중 수정도 바로 반영)
     }
 
     private void LateUpdate() // LateUpdate는 모든 Update 로직이 끝난 후 실행됩니다.
@@ -65,8 +93,9 @@ public class CameraController : MonoBehaviour
         if (target == null) return;
 
         // 2. 마우스로 정해진 각도(yaw) 기준으로 대상의 뒤쪽(distance)과 위쪽(height) 위치를 계산합니다.
-        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
-        Vector3 desiredPosition = target.position + rotation * new Vector3(0f, height, -distance);
+        //    (yaw: 좌우 회전, pitch: 상하 각도. 대상으로부터 Radius만큼 떨어진 궤도 위에 위치)
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 desiredPosition = target.position + rotation * new Vector3(0f, 0f, -Radius);
         Vector3 pivot = target.position + Vector3.up * pivotHeight;
 
         // 3. 목표 위치 자체를 벽 앞으로 보정합니다.
@@ -123,6 +152,15 @@ public class CameraController : MonoBehaviour
         return Mouse.current != null ? Mouse.current.delta.ReadValue().x * 0.1f : 0f;
 #else
         return Input.GetAxis("Mouse X");
+#endif
+    }
+
+    private float ReadMouseY()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null ? Mouse.current.delta.ReadValue().y * 0.1f : 0f;
+#else
+        return Input.GetAxis("Mouse Y");
 #endif
     }
 

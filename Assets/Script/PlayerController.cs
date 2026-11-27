@@ -3,139 +3,144 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
-/// <summary>
-/// Turtle(거북이) 조작 스크립트 (평면 이동용, 단독 동작)
-///  - WASD : 카메라가 바라보는 방향(수평) 기준으로 이동
-///  - E    : 가까이 있는 Rabbit(토끼)를 구출해서 등에 태움
-///
-/// 카메라는 별도 스크립트가 담당하며, 이 스크립트는 카메라 방향을 읽기만 한다.
-/// 새 Input System / 기존 Input Manager 둘 다 지원한다.
-/// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("이동 (Turtle)")]
-    [SerializeField] private float speed = 5f;
-    [SerializeField, Range(0.1f, 1f)] private float carrySpeedMultiplier = 0.55f; // 토끼를 업었을 때 속도 배율
-    [SerializeField] private float turnSpeed = 12f;                              // 이동 방향으로 몸이 돌아가는 속도
-    [SerializeField] private Transform cameraTransform;                          // 비워두면 Main Camera 사용
+    [Header("이동 속도 설정")]
+    [Tooltip("토끼를 태우기 전 기본 이동 속도")]
+    [SerializeField] private float normalSpeed = 6f;
+    [Tooltip("토끼를 태운 후 이동 속도")]
+    [SerializeField] private float carryingSpeed = 3.5f;
+    [Tooltip("이동 방향을 향해 몸을 돌리는 속도")]
+    [SerializeField] private float turnSpeed = 12f;
+    [Tooltip("모델의 앞 방향 보정 (꼬리가 앞을 보면 180)")]
+    [SerializeField, Range(-180f, 180f)] private float modelYawOffset = 180f;
 
-    [Header("토끼 (Rabbit)")]
-    [SerializeField] private Transform rabbit;                                   // 비워두면 이름으로 자동 검색
+    [Header("마우스 화면 회전 설정")]
+    [Tooltip("마우스로 회전시킬 카메라 또는 카메라 피벗 오브젝트 (비워두면 Main Camera 사용)")]
+    [SerializeField] private Transform cameraPivot;
+    [SerializeField] private float mouseSensitivity = 2.5f;
+    [SerializeField] private float minPitch = -20f;
+    [SerializeField] private float maxPitch = 65f;
+    [Tooltip("게임 실행 중 마우스 커서를 화면 중앙에 고정할지 여부")]
+    [SerializeField] private bool lockCursor = false;
+
+    [Header("토끼(Rabbit) 탑승 설정")]
+    [Tooltip("태울 토끼 오브젝트 (비워두면 이름으로 자동 검색)")]
+    [SerializeField] private Transform rabbit;
     [SerializeField] private string rabbitObjectName = "Rabbit";
-    [SerializeField] private Transform carryPoint;                               // 비워두면 등 위치에 자동 생성
-    [SerializeField] private Vector3 carryLocalPosition = new Vector3(0f, 0.6f, -0.2f);
-    [SerializeField] private float rescueRange = 2.5f;
+    [Tooltip("거북이 등 위 탑승 위치 (비워두면 자동 생성)")]
+    [SerializeField] private Transform carryPoint;
+    [Tooltip("거북이 기준 토끼 탑승 위치 오프셋 (실행 중에도 실시간 반영)")]
+    [SerializeField] private Vector3 carryLocalPosition = new Vector3(0f, 0.25f, -0.1f);
+    [Tooltip("토끼 바라보는 방향 미세 보정")]
+    [SerializeField] private Vector3 carryLocalEulerAngles = Vector3.zero;
+    [SerializeField] private float pickupRange = 3f;
 
     private Rigidbody rb;
-    private Vector3 moveInput;
+    private Vector2 moveInput;
+    private Vector2 lookInput;
 
-    public bool HasRabbit { get; private set; }
-    public Transform Rabbit => rabbit;
-    public float CurrentSpeedMultiplier => HasRabbit ? carrySpeedMultiplier : 1f;
+    private float yaw;
+    private float pitch = 25f;
+    private bool isCarryingRabbit;
+    private bool autoCarryPointCreated;
 
-    /// <summary>토끼가 구출 가능한 거리 안에 있는지 (UI에서 "E키로 구출" 표시 등에 활용)</summary>
-    public bool IsRabbitInRange =>
-        rabbit != null && !HasRabbit &&
-        Vector3.Distance(transform.position, rabbit.position) <= rescueRange;
+    public bool IsCarryingRabbit => isCarryingRabbit;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-
-        if (rb.isKinematic)
-            Debug.LogWarning("[PlayerController] Rigidbody의 Is Kinematic이 켜져 있어 해제합니다.", this);
-
-        rb.isKinematic = false;                              // Kinematic이면 속도로 움직일 수 없음
-        rb.useGravity = true;                                // 평면 위에서 이동하므로 중력 사용
-        rb.constraints = RigidbodyConstraints.FreezeRotation; // Inspector에서 위치 Freeze가 켜져 있어도 풀림
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.constraints = RigidbodyConstraints.FreezeRotation;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        if (cameraTransform == null && Camera.main != null)
-            cameraTransform = Camera.main.transform;
+        if (cameraPivot == null && Camera.main != null)
+            cameraPivot = Camera.main.transform;
+
+        if (cameraPivot != null)
+        {
+            Vector3 angles = cameraPivot.eulerAngles;
+            yaw = angles.y;
+            pitch = angles.x > 180f ? angles.x - 360f : angles.x;
+        }
+
+        if (lockCursor)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
     }
 
     private void Start()
     {
-        // 토끼 자동 검색 (Hierarchy에 "Rabbit" 이름의 오브젝트가 있으면 연결)
-        if (rabbit == null)
+        if (rabbit == null && !string.IsNullOrEmpty(rabbitObjectName))
         {
             GameObject found = GameObject.Find(rabbitObjectName);
-            if (found != null) rabbit = found.transform;
-            else Debug.LogWarning($"[PlayerController] '{rabbitObjectName}' 오브젝트를 찾지 못했습니다.", this);
+            if (found != null)
+                rabbit = found.transform;
         }
 
-        // 등 위 탑승 위치 자동 생성
         if (carryPoint == null)
         {
-            var go = new GameObject("RabbitCarryPoint");
-            carryPoint = go.transform;
+            GameObject pointObj = new GameObject("CarryPoint");
+            carryPoint = pointObj.transform;
             carryPoint.SetParent(transform);
-            carryPoint.localPosition = carryLocalPosition;
-            carryPoint.localRotation = Quaternion.identity;
+            autoCarryPointCreated = true;
         }
+
+        ApplyCarryPointTransform();
     }
 
     private void Update()
     {
-        Vector2 input = ReadMoveInput();
+        ReadInputs();
+        HandleCameraRotation();
 
-        // 카메라 기준 수평 방향 계산
-        Vector3 forward = transform.forward;
-        Vector3 right = transform.right;
-        if (cameraTransform != null)
-        {
-            forward = cameraTransform.forward;
-            right = cameraTransform.right;
-        }
-        forward.y = 0f;
-        right.y = 0f;
-        // 카메라가 바닥을 수직으로 내려다볼 때 방향이 0이 되는 경우 방지
-        if (forward.sqrMagnitude < 0.001f) forward = transform.forward;
-        forward.Normalize();
-        right.Normalize();
+        if (autoCarryPointCreated)
+            ApplyCarryPointTransform();
 
-        moveInput = (forward * input.y + right * input.x).normalized;
-
-        if (InteractPressed())
-            TryRescueRabbit();
+        if (WasInteractPressed() && !isCarryingRabbit)
+            TryPickUpRabbit();
     }
 
     private void FixedUpdate()
     {
-        Vector3 horizontal = moveInput * (speed * CurrentSpeedMultiplier);
-
-        // 수평 속도만 덮어쓰고, 수직(중력) 속도는 그대로 유지
-#if UNITY_6000_0_OR_NEWER
-        rb.linearVelocity = new Vector3(horizontal.x, rb.linearVelocity.y, horizontal.z);
-#else
-        rb.velocity = new Vector3(horizontal.x, rb.velocity.y, horizontal.z);
-#endif
-
-        // 이동 방향으로 몸 회전
-        if (moveInput.sqrMagnitude > 0.01f)
-        {
-            Quaternion target = Quaternion.LookRotation(moveInput, Vector3.up);
-            rb.MoveRotation(Quaternion.Slerp(rb.rotation, target, turnSpeed * Time.fixedDeltaTime));
-        }
+        HandleMovement();
     }
 
-    // ───────────────── 입력 (새/기존 Input 시스템 모두 지원) ─────────────────
-
-    private Vector2 ReadMoveInput()
+    private void ReadInputs()
     {
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current;
-        if (kb == null) return Vector2.zero;
-        float h = (kb.dKey.isPressed ? 1f : 0f) - (kb.aKey.isPressed ? 1f : 0f);
-        float v = (kb.wKey.isPressed ? 1f : 0f) - (kb.sKey.isPressed ? 1f : 0f);
-        return new Vector2(h, v);
+        if (kb != null)
+        {
+            float h = (kb.dKey.isPressed ? 1f : 0f) - (kb.aKey.isPressed ? 1f : 0f);
+            float v = (kb.wKey.isPressed ? 1f : 0f) - (kb.sKey.isPressed ? 1f : 0f);
+            moveInput = new Vector2(h, v);
+        }
+        else
+        {
+            moveInput = Vector2.zero;
+        }
+
+        var mouse = Mouse.current;
+        if (mouse != null)
+        {
+            lookInput = mouse.delta.ReadValue() * 0.1f;
+        }
+        else
+        {
+            lookInput = Vector2.zero;
+        }
 #else
-        return new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+        moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+        lookInput = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
 #endif
     }
 
-    private bool InteractPressed()
+    private bool WasInteractPressed()
     {
 #if ENABLE_INPUT_SYSTEM
         return Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame;
@@ -144,36 +149,108 @@ public class PlayerController : MonoBehaviour
 #endif
     }
 
-    // ───────────────── 토끼 구출 ─────────────────
-
-    private void TryRescueRabbit()
+    private void HandleCameraRotation()
     {
-        if (HasRabbit || rabbit == null) return;
+        if (cameraPivot == null) return;
 
-        if (!IsRabbitInRange)
+        yaw += lookInput.x * mouseSensitivity;
+        pitch -= lookInput.y * mouseSensitivity;
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+
+        cameraPivot.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
+
+    private void HandleMovement()
+    {
+        Vector3 clampedInput = Vector3.ClampMagnitude(new Vector3(moveInput.x, 0f, moveInput.y), 1f);
+
+        Vector3 forward = Vector3.forward;
+        Vector3 right = Vector3.right;
+
+        if (cameraPivot != null)
         {
-            Debug.Log("토끼에게 더 가까이 가야 한다!");
-            return;
+            forward = cameraPivot.forward;
+            forward.y = 0f;
+            forward.Normalize();
+
+            right = cameraPivot.right;
+            right.y = 0f;
+            right.Normalize();
         }
 
-        // 토끼의 충돌/물리를 끄고 등 위(carryPoint)에 자식으로 붙임
-        foreach (var col in rabbit.GetComponentsInChildren<Collider>())
+        Vector3 moveDir = forward * clampedInput.z + right * clampedInput.x;
+        float currentSpeed = isCarryingRabbit ? carryingSpeed : normalSpeed;
+
+        Vector3 horizontalVelocity = moveDir * currentSpeed;
+        SetHorizontalVelocity(horizontalVelocity);
+
+        if (moveDir.sqrMagnitude > 0.001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(moveDir, Vector3.up) * Quaternion.Euler(0f, modelYawOffset, 0f);
+            Quaternion smoothRot = Quaternion.Slerp(rb.rotation, targetRot, turnSpeed * Time.fixedDeltaTime);
+            rb.MoveRotation(smoothRot);
+        }
+    }
+
+    private void TryPickUpRabbit()
+    {
+        if (rabbit == null) return;
+
+        float dist = Vector3.Distance(transform.position, rabbit.position);
+        if (dist > pickupRange) return;
+
+        foreach (Collider col in rabbit.GetComponentsInChildren<Collider>())
             col.enabled = false;
 
-        var rabbitRb = rabbit.GetComponent<Rigidbody>();
-        if (rabbitRb != null) rabbitRb.isKinematic = true;
+        Rigidbody rabbitRb = rabbit.GetComponent<Rigidbody>();
+        if (rabbitRb != null)
+            rabbitRb.isKinematic = true;
 
         rabbit.SetParent(carryPoint);
         rabbit.localPosition = Vector3.zero;
         rabbit.localRotation = Quaternion.identity;
 
-        HasRabbit = true;
-        Debug.Log("Rabbit를 구출했다!");
+        isCarryingRabbit = true;
+    }
+
+    private void ApplyCarryPointTransform()
+    {
+        if (carryPoint == null) return;
+
+        carryPoint.localPosition = carryLocalPosition;
+        // 거북이 모델이 180도 뒤집혀 있을 때도 토끼가 거북이와 같은 앞쪽을 보도록 보정
+        carryPoint.localRotation = Quaternion.Euler(0f, -modelYawOffset, 0f) * Quaternion.Euler(carryLocalEulerAngles);
+    }
+
+    private Vector3 GetHorizontalVelocity()
+    {
+#if UNITY_6000_0_OR_NEWER
+        Vector3 v = rb.linearVelocity;
+#else
+        Vector3 v = rb.velocity;
+#endif
+        return new Vector3(v.x, 0f, v.z);
+    }
+
+    private void SetHorizontalVelocity(Vector3 horizontal)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.linearVelocity = new Vector3(horizontal.x, rb.linearVelocity.y, horizontal.z);
+#else
+        rb.velocity = new Vector3(horizontal.x, rb.velocity.y, horizontal.z);
+#endif
     }
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, rescueRange);
+        Gizmos.DrawWireSphere(transform.position, pickupRange);
+
+        Vector3 previewPos = carryPoint != null
+            ? carryPoint.position
+            : transform.TransformPoint(carryLocalPosition);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(previewPos, 0.15f);
     }
 }
